@@ -1,0 +1,33 @@
+[project]
+name = 'Decentralized-Registry-for-Lost-and-Found-Valuable-Assets'
+description = ''
+authors = []
+telemetry = true
+cache_dir = '.\.cache'
+requirements = []
+[contracts.Asset_Registry_Contract]
+path = 'contracts/Asset_Registry_Contract.clar'
+clarity_version = 3
+epoch = '3.2'
+
+[contracts.Reputation_System_Contract]
+path = 'contracts/Reputation_System_Contract.clar'
+clarity_version = 3
+epoch = 'latest'
+
+[contracts.Reward_Escrow_Contract]
+path = 'contracts/Reward_Escrow_Contract.clar'
+clarity_version = 3
+epoch = '3.2'
+[repl.analysis]
+passes = ['check_checker']
+
+[repl.analysis.check_checker]
+strict = false
+trusted_sender = false
+trusted_caller = false
+callee_filter = false
+
+[repl.remote_data]
+enabled = false
+api_url = 'https://api.hiro.so'
