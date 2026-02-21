@@ -45,16 +45,19 @@ genesis:
       balance: "100000000000000"
       sbtc-balance: "1000000000"
   contracts:
+    - genesis
+    - lockup
+    - bns
+    - cost-voting
     - costs
     - pox
+    - costs-2
     - pox-2
+    - costs-3
     - pox-3
     - pox-4
-    - lockup
-    - costs-2
-    - costs-3
-    - cost-voting
-    - bns
+    - signers
+    - signers-voting
 plan:
   batches:
     - id: 0
@@ -62,16 +65,16 @@ plan:
         - emulated-contract-publish:
             contract-name: Asset_Registry_Contract
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: "contracts\\Asset_Registry_Contract.clar"
+            path: contracts/Asset_Registry_Contract.clar
             clarity-version: 3
         - emulated-contract-publish:
             contract-name: Reputation_System_Contract
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: "contracts\\Reputation_System_Contract.clar"
+            path: contracts/Reputation_System_Contract.clar
             clarity-version: 3
         - emulated-contract-publish:
             contract-name: Reward_Escrow_Contract
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: "contracts\\Reward_Escrow_Contract.clar"
+            path: contracts/Reward_Escrow_Contract.clar
             clarity-version: 3
       epoch: "3.2"

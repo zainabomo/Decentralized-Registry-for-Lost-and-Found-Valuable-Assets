@@ -6,6 +6,7 @@ const accounts = simnet.getAccounts();
 const deployer = accounts.get("deployer")!;
 const wallet1 = accounts.get("wallet_1")!;
 const wallet2 = accounts.get("wallet_2")!;
+const wallet3 = accounts.get("wallet_3")!;
 
 const contractName = "Asset_Registry_Contract";
 
@@ -103,8 +104,6 @@ describe("Asset Registry Contract Tests", () => {
     });
   });
 });
-  contactInfoHash: new Uint8Array(32).fill(3)
-};
 
 describe("Asset Registry Contract Tests", () => {
   beforeEach(() => {
@@ -674,6 +673,416 @@ describe("Asset Registry Contract Tests", () => {
         deployer
       );
       expect(keysCount).toBeUint(1);
+    });
+  });
+
+  describe("Asset Matching and Verification", () => {
+    it("should propose a match between lost and found assets", () => {
+      // Register a lost asset
+      simnet.callPublicFn(
+        contractName,
+        "register-lost-asset",
+        [
+          Cl.stringAscii("phone"),
+          Cl.stringAscii("iPhone 12 Pro"),
+          Cl.stringAscii("Central Park"),
+          Cl.uint(1000),
+          Cl.buffer(new Uint8Array(32).fill(1)),
+          Cl.buffer(new Uint8Array(32).fill(2))
+        ],
+        wallet1
+      );
+
+      // Register a found asset with same type
+      simnet.callPublicFn(
+        contractName,
+        "register-found-asset",
+        [
+          Cl.stringAscii("phone"),
+          Cl.stringAscii("iPhone 12 Pro"),
+          Cl.stringAscii("Central Park"),
+          Cl.buffer(new Uint8Array(32).fill(3))
+        ],
+        wallet2
+      );
+
+      // Propose a match
+      const { result } = simnet.callPublicFn(
+        contractName,
+        "propose-match",
+        [Cl.uint(1), Cl.uint(2)],
+        wallet1
+      );
+
+      expect(result).toBeOk(Cl.uint(100));
+    });
+
+    it("should fail to propose match with invalid asset statuses", () => {
+      // Register two lost assets
+      simnet.callPublicFn(
+        contractName,
+        "register-lost-asset",
+        [
+          Cl.stringAscii("phone"),
+          Cl.stringAscii("iPhone 12 Pro"),
+          Cl.stringAscii("Central Park"),
+          Cl.uint(1000),
+          Cl.buffer(new Uint8Array(32).fill(1)),
+          Cl.buffer(new Uint8Array(32).fill(2))
+        ],
+        wallet1
+      );
+
+      simnet.callPublicFn(
+        contractName,
+        "register-lost-asset",
+        [
+          Cl.stringAscii("phone"),
+          Cl.stringAscii("Samsung Galaxy"),
+          Cl.stringAscii("Times Square"),
+          Cl.uint(800),
+          Cl.buffer(new Uint8Array(32).fill(3)),
+          Cl.buffer(new Uint8Array(32).fill(4))
+        ],
+        wallet2
+      );
+
+      // Try to propose match between two lost assets
+      const { result } = simnet.callPublicFn(
+        contractName,
+        "propose-match",
+        [Cl.uint(1), Cl.uint(2)],
+        wallet1
+      );
+
+      expect(result).toBeErr(Cl.uint(105)); // ERR-INVALID-MATCH
+    });
+
+    it("should prevent unauthorized users from proposing matches", () => {
+      // Register a lost asset
+      simnet.callPublicFn(
+        contractName,
+        "register-lost-asset",
+        [
+          Cl.stringAscii("phone"),
+          Cl.stringAscii("iPhone 12 Pro"),
+          Cl.stringAscii("Central Park"),
+          Cl.uint(1000),
+          Cl.buffer(new Uint8Array(32).fill(1)),
+          Cl.buffer(new Uint8Array(32).fill(2))
+        ],
+        wallet1
+      );
+
+      // Register a found asset
+      simnet.callPublicFn(
+        contractName,
+        "register-found-asset",
+        [
+          Cl.stringAscii("phone"),
+          Cl.stringAscii("iPhone 12 Pro"),
+          Cl.stringAscii("Central Park"),
+          Cl.buffer(new Uint8Array(32).fill(3))
+        ],
+        wallet2
+      );
+
+      // Try to propose match as unauthorized user
+      const { result } = simnet.callPublicFn(
+        contractName,
+        "propose-match",
+        [Cl.uint(1), Cl.uint(2)],
+        wallet3
+      );
+
+      expect(result).toBeErr(Cl.uint(100)); // ERR-UNAUTHORIZED
+    });
+
+    it("should prevent duplicate match proposals", () => {
+      // Register a lost asset
+      simnet.callPublicFn(
+        contractName,
+        "register-lost-asset",
+        [
+          Cl.stringAscii("phone"),
+          Cl.stringAscii("iPhone 12 Pro"),
+          Cl.stringAscii("Central Park"),
+          Cl.uint(1000),
+          Cl.buffer(new Uint8Array(32).fill(1)),
+          Cl.buffer(new Uint8Array(32).fill(2))
+        ],
+        wallet1
+      );
+
+      // Register a found asset
+      simnet.callPublicFn(
+        contractName,
+        "register-found-asset",
+        [
+          Cl.stringAscii("phone"),
+          Cl.stringAscii("iPhone 12 Pro"),
+          Cl.stringAscii("Central Park"),
+          Cl.buffer(new Uint8Array(32).fill(3))
+        ],
+        wallet2
+      );
+
+      // Propose first match
+      simnet.callPublicFn(
+        contractName,
+        "propose-match",
+        [Cl.uint(1), Cl.uint(2)],
+        wallet1
+      );
+
+      // Try to propose duplicate match
+      const { result } = simnet.callPublicFn(
+        contractName,
+        "propose-match",
+        [Cl.uint(1), Cl.uint(2)],
+        wallet1
+      );
+
+      expect(result).toBeErr(Cl.uint(107)); // ERR-MATCH-ALREADY-EXISTS
+    });
+
+    it("should verify match with correct verification code", () => {
+      const verificationCode = new Uint8Array(32).fill(2);
+
+      // Register a lost asset
+      simnet.callPublicFn(
+        contractName,
+        "register-lost-asset",
+        [
+          Cl.stringAscii("phone"),
+          Cl.stringAscii("iPhone 12 Pro"),
+          Cl.stringAscii("Central Park"),
+          Cl.uint(1000),
+          Cl.buffer(new Uint8Array(32).fill(1)),
+          Cl.buffer(verificationCode)
+        ],
+        wallet1
+      );
+
+      // Register a found asset
+      simnet.callPublicFn(
+        contractName,
+        "register-found-asset",
+        [
+          Cl.stringAscii("phone"),
+          Cl.stringAscii("iPhone 12 Pro"),
+          Cl.stringAscii("Central Park"),
+          Cl.buffer(new Uint8Array(32).fill(3))
+        ],
+        wallet2
+      );
+
+      // Propose a match
+      simnet.callPublicFn(
+        contractName,
+        "propose-match",
+        [Cl.uint(1), Cl.uint(2)],
+        wallet1
+      );
+
+      // Verify match with correct code
+      const { result } = simnet.callPublicFn(
+        contractName,
+        "verify-match",
+        [Cl.uint(1), Cl.uint(2), Cl.buffer(verificationCode)],
+        wallet1
+      );
+
+      expect(result).toBeOk(Cl.bool(true));
+    });
+
+    it("should fail verification with incorrect code", () => {
+      const correctCode = new Uint8Array(32).fill(2);
+      const incorrectCode = new Uint8Array(32).fill(99);
+
+      // Register a lost asset
+      simnet.callPublicFn(
+        contractName,
+        "register-lost-asset",
+        [
+          Cl.stringAscii("phone"),
+          Cl.stringAscii("iPhone 12 Pro"),
+          Cl.stringAscii("Central Park"),
+          Cl.uint(1000),
+          Cl.buffer(new Uint8Array(32).fill(1)),
+          Cl.buffer(correctCode)
+        ],
+        wallet1
+      );
+
+      // Register a found asset
+      simnet.callPublicFn(
+        contractName,
+        "register-found-asset",
+        [
+          Cl.stringAscii("phone"),
+          Cl.stringAscii("iPhone 12 Pro"),
+          Cl.stringAscii("Central Park"),
+          Cl.buffer(new Uint8Array(32).fill(3))
+        ],
+        wallet2
+      );
+
+      // Propose a match
+      simnet.callPublicFn(
+        contractName,
+        "propose-match",
+        [Cl.uint(1), Cl.uint(2)],
+        wallet1
+      );
+
+      // Try to verify with incorrect code
+      const { result } = simnet.callPublicFn(
+        contractName,
+        "verify-match",
+        [Cl.uint(1), Cl.uint(2), Cl.buffer(incorrectCode)],
+        wallet1
+      );
+
+      expect(result).toBeOk(Cl.bool(false));
+    });
+
+    it("should reject a match proposal", () => {
+      // Register a lost asset
+      simnet.callPublicFn(
+        contractName,
+        "register-lost-asset",
+        [
+          Cl.stringAscii("phone"),
+          Cl.stringAscii("iPhone 12 Pro"),
+          Cl.stringAscii("Central Park"),
+          Cl.uint(1000),
+          Cl.buffer(new Uint8Array(32).fill(1)),
+          Cl.buffer(new Uint8Array(32).fill(2))
+        ],
+        wallet1
+      );
+
+      // Register a found asset
+      simnet.callPublicFn(
+        contractName,
+        "register-found-asset",
+        [
+          Cl.stringAscii("phone"),
+          Cl.stringAscii("iPhone 12 Pro"),
+          Cl.stringAscii("Central Park"),
+          Cl.buffer(new Uint8Array(32).fill(3))
+        ],
+        wallet2
+      );
+
+      // Propose a match
+      simnet.callPublicFn(
+        contractName,
+        "propose-match",
+        [Cl.uint(1), Cl.uint(2)],
+        wallet1
+      );
+
+      // Reject the match
+      const { result } = simnet.callPublicFn(
+        contractName,
+        "reject-match",
+        [Cl.uint(1), Cl.uint(2)],
+        wallet1
+      );
+
+      expect(result).toBeOk(Cl.bool(true));
+    });
+
+    it("should get match request details", () => {
+      // Register a lost asset
+      simnet.callPublicFn(
+        contractName,
+        "register-lost-asset",
+        [
+          Cl.stringAscii("phone"),
+          Cl.stringAscii("iPhone 12 Pro"),
+          Cl.stringAscii("Central Park"),
+          Cl.uint(1000),
+          Cl.buffer(new Uint8Array(32).fill(1)),
+          Cl.buffer(new Uint8Array(32).fill(2))
+        ],
+        wallet1
+      );
+
+      // Register a found asset
+      simnet.callPublicFn(
+        contractName,
+        "register-found-asset",
+        [
+          Cl.stringAscii("phone"),
+          Cl.stringAscii("iPhone 12 Pro"),
+          Cl.stringAscii("Central Park"),
+          Cl.buffer(new Uint8Array(32).fill(3))
+        ],
+        wallet2
+      );
+
+      // Propose a match
+      simnet.callPublicFn(
+        contractName,
+        "propose-match",
+        [Cl.uint(1), Cl.uint(2)],
+        wallet1
+      );
+
+      // Get match request
+      const { result } = simnet.callReadOnlyFn(
+        contractName,
+        "get-match-request",
+        [Cl.uint(1), Cl.uint(2)],
+        deployer
+      );
+
+      // Verify match request exists
+      expect(result).toBeSome();
+    });
+
+    it("should calculate match score for similar assets", () => {
+      // Register a lost asset
+      simnet.callPublicFn(
+        contractName,
+        "register-lost-asset",
+        [
+          Cl.stringAscii("phone"),
+          Cl.stringAscii("iPhone 12 Pro"),
+          Cl.stringAscii("Central Park"),
+          Cl.uint(1000),
+          Cl.buffer(new Uint8Array(32).fill(1)),
+          Cl.buffer(new Uint8Array(32).fill(2))
+        ],
+        wallet1
+      );
+
+      // Register a found asset with same description
+      simnet.callPublicFn(
+        contractName,
+        "register-found-asset",
+        [
+          Cl.stringAscii("phone"),
+          Cl.stringAscii("iPhone 12 Pro"),
+          Cl.stringAscii("Central Park"),
+          Cl.buffer(new Uint8Array(32).fill(3))
+        ],
+        wallet2
+      );
+
+      // Get match score
+      const { result } = simnet.callReadOnlyFn(
+        contractName,
+        "get-match-score",
+        [Cl.uint(1), Cl.uint(2)],
+        deployer
+      );
+
+      // Should have a high score (100) since type and description match
+      expect(result).toBeUint(100);
     });
   });
 });
